@@ -1,0 +1,60 @@
+when:
+  event: [push, pull_request]
+
+steps:
+  build:
+    image: gcc:15.2.0
+    commands:
+      - cmake -B build -DCMAKE_CXX_FLAGS="-Wall -Werror -pedantic" -DBUILD_TESTING=ON
+      - cmake --build build -j$(nproc)
+      - cd build && ctest --output-on-failure
+
+  sanitizer:
+    image: gcc:15.2.0
+    commands:
+      - cmake -B build-san -DCMAKE_CXX_FLAGS="-Wall -Werror -pedantic -fsanitize=address,undefined -fno-omit-frame-pointer -g" -DBUILD_TESTING=ON
+      - cmake --build build-san -j$(nproc)
+      - cd build-san && ctest --output-on-failure
+
+  coverage:
+    image: gcc:15.2.0
+    environment:
+      GITHUB_TOKEN:
+        from_secret: 7eacb76ea16e9c393bc7c2be36bd0fb6e7988292
+    commands:
+      - apt-get update && apt-get install -y lcov gcovr
+      - cmake -B build-cov -DCMAKE_CXX_FLAGS="-Wall -Werror -pedantic -fprofile-arcs -ftest-coverage -g" -DBUILD_TESTING=ON
+      - cmake --build build-cov -j$(nproc)
+      - cd build-cov && ctest
+      - gcovr --root .. --xml coverage.xml
+      - gcovr --root .. --html-details coverage.html
+      - |
+        if [ -n "$CI_COMMIT_PULL_REQUEST" ]; then
+          COVERAGE_SUMMARY=$(gcovr --root .. | grep -E "^TOTAL" | awk '{print $2}')
+          COMMENT="## Coverage report\n\nLines covered: $COVERAGE_SUMMARY\n\nFull report available in artifacts."
+          curl -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${CI_REPO}/issues/${CI_COMMIT_PULL_REQUEST}/comments" \
+            -d "{\"body\":\"$COMMENT\"}"
+        fi
+
+  static_analysis:
+    image: gcc:15.2.0
+    environment:
+      GITHUB_TOKEN:
+        from_secret: 7eacb76ea16e9c393bc7c2be36bd0fb6e7988292
+    commands:
+      - apt-get update && apt-get install -y cppcheck
+      - cppcheck --enable=all --inconclusive --std=c++17 --xml-version=2 Vector.hpp 2> cppcheck.xml
+      - |
+        if [ -n "$CI_COMMIT_PULL_REQUEST" ]; then
+          ERRORS=$(grep -c '<error ' cppcheck.xml || true)
+          WARNINGS=$(grep -c '<warning ' cppcheck.xml || true)
+          COMMENT="## Static analysis (cppcheck)\n\nErrors: $ERRORS, Warnings: $WARNINGS\n\nSee pipeline artifacts for details."
+          curl -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${CI_REPO}/issues/${CI_COMMIT_PULL_REQUEST}/comments" \
+            -d "{\"body\":\"$COMMENT\"}"
+        fi
