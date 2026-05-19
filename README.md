@@ -1,4 +1,7 @@
-﻿# custom-vector-cpp
+﻿[![CI](https://github.com/5etrovich/custom-vector-cpp/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/5etrovich/custom-vector-cpp/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](https://github.com/5etrovich/custom-vector-cpp/actions/workflows/ci.yml)
+
+# custom-vector-cpp
 
 Custom implementation of Vector<T> in C++17, built from scratch without STL containers.
 
@@ -7,7 +10,9 @@ Custom implementation of Vector<T> in C++17, built from scratch without STL cont
 - Dynamic array with manual memory management (operator new / placement new)
 - Full iterator support: random access, arithmetic, comparison
 - Move semantics (move constructor + move assignment)
-- Methods: push_back, pop_back, eserve, esize, t, ront, ack, swap, clear
+- Methods: push_back, pop_back, 
+eserve, 
+esize,  t, ront, ack, swap, clear
 - 25 unit tests via Google Test (including stress tests and custom types)
 
 ## CI/CD Pipeline (Woodpecker CI + Docker)
