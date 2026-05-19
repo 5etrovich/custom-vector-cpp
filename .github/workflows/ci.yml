@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install dependencies
+      run: sudo apt-get update && sudo apt-get install -y cmake g++ libgtest-dev
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_CXX_FLAGS="-Wall -Werror -pedantic" -DBUILD_TESTING=ON
+    - name: Build
+      run: cmake --build build -j$(nproc)
+    - name: Run tests
+      run: cd build && ctest --output-on-failure
+
+  sanitizer:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install dependencies
+      run: sudo apt-get update && sudo apt-get install -y cmake g++
+    - name: Configure CMake with sanitizers
+      run: cmake -B build-san -DCMAKE_CXX_FLAGS="-Wall -Werror -pedantic -fsanitize=address,undefined -fno-omit-frame-pointer -g" -DBUILD_TESTING=ON
+    - name: Build
+      run: cmake --build build-san -j$(nproc)
+    - name: Run tests with sanitizers
+      run: cd build-san && ctest --output-on-failure
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install dependencies
+      run: sudo apt-get update && sudo apt-get install -y cmake g++ lcov gcovr
+    - name: Configure CMake with coverage flags
+      run: cmake -B build-cov -DCMAKE_CXX_FLAGS="-Wall -Werror -pedantic -fprofile-arcs -ftest-coverage -g" -DBUILD_TESTING=ON
+    - name: Build
+      run: cmake --build build-cov -j$(nproc)
+    - name: Run tests
+      run: cd build-cov && ctest
+    - name: Generate coverage report
+      run: |
+        cd build-cov
+        gcovr --root .. --xml coverage.xml
+        gcovr --root .. --html coverage.html
+    - name: Upload coverage artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: build-cov/coverage.html
+
+  static_analysis:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install cppcheck
+      run: sudo apt-get update && sudo apt-get install -y cppcheck
+    - name: Run cppcheck
+      run: cppcheck --enable=all --inconclusive --std=c++17 --xml-version=2 Vector.hpp 2> cppcheck.xml
+    - name: Upload cppcheck results
+      uses: actions/upload-artifact@v4
+      with:
+        name: cppcheck-report
+        path: cppcheck.xml
